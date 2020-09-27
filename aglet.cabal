@@ -1,0 +1,28 @@
+cabal-version:      3.0
+name:               aglet
+version:            0.1.0.0
+license:            GPL-3.0-or-later
+license-file:       LICENSE
+author:             June Woodward
+maintainer:         jlwoodwa@caltech.edu
+category:           Language
+extra-source-files: CHANGELOG.md
+
+library
+  exposed-modules:  Language.Aglet
+  build-depends:
+    , base        ^>=4.14.1.0
+    , containers  ^>=0.6.4.1
+    , text        ^>=1.2.3.2
+
+  hs-source-dirs:   src
+  default-language: Haskell2010
+
+executable aglet
+  main-is:          Main.hs
+  build-depends:
+    , aglet
+    , base   ^>=4.14.1.0
+
+  hs-source-dirs:   app
+  default-language: Haskell2010
