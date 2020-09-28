@@ -6,6 +6,9 @@
 
 -- TODO: nested lambdas don't work!
 -- d <- flip a initCtx $ sApp [sApp [SLambda ["x"] $ SLambda ["y"] $ SVar "x", SLit 1], SLit 2]
+-- probably fixed now??
+--
+-- try c <- flip a initCtx $ sApp [SVar "def", SQuot $ SVar "realFact", sApp [SVar "Y", SVar "alFact"]]
 
 module Language.Aglet where
 
@@ -13,7 +16,7 @@ import Control.Applicative ((<|>))
 import Data.Foldable (toList)
 import Data.Map.Strict (Map, empty, fromList, insert, member, (!?))
 import Data.Maybe (fromMaybe)
-import Data.Sequence (Seq (Empty, (:<|), (:|>)), scanl, singleton)
+import Data.Sequence (Seq (Empty, (:<|), (:|>)), scanl, singleton, (><))
 import Data.Sequence qualified as S (fromList)
 import Data.Text (Text, intercalate, pack, unpack)
 import Debug.Trace (trace, traceShow, traceShowId)
@@ -87,15 +90,15 @@ breathe (SVar var) ctx =
     . fromMaybe (trace ("LOOKUP FAILED OF VARIABLE " <> unpack var) $ PNil) -- correct signalling of exception
     $ lookContext ctx var
 breathe (SQuot s) ctx = (PQuot s, ctx)
-breathe (SLambda idents body) ctx =
+breathe (SLambda idents body) ctx@(Context c) =
   (,ctx) -- suspicious
     . PFun "lambda"
     $ \pneums (Context ctx') ->
       case breathe body
         . Context
         $ Frame (traceShowId $ fromList $ zip idents pneums)
-          :<| ctx' of -- THIS MUST BE CTX, NOT CTX'!!!!
-        b@(_, Context Empty) -> error "this should be impossible " -- b
+          :<| (c >< ctx') of -- THIS MUST BE CTX, NOT CTX'!!!! -- should we really be appending the two contexts????
+        b@(_, Context Empty) -> b
         (pne, Context (trash :<| old)) -> (pne, Context old)
 breathe (SApp Empty) ctx = (PNil, ctx) -- should be `error`?
 breathe (SApp somas) ctx =
@@ -132,7 +135,7 @@ initCtx =
         ("-", PFun "builtin -" \[PLit x1, PLit x2] ctx -> (,ctx) . PLit $ x1 - x2),
         ( "*",
           PFun "builtin *" \args ctx ->
-            traceShow args $ (,ctx) . PLit . sum . map (\(PLit x) -> x) $ args
+            traceShow args $ (,ctx) . PLit . product . map (\(PLit x) -> x) $ args
         ),
         ( "if",
           PFun "builtin if" \[bool, arm1, arm2] ctx -> flip rebreathe ctx case bool of
