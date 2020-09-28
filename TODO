@@ -1,0 +1,4 @@
+1. unseparate global from context -- CHECK
+2. make decl/mut into builtins rather than somatic forms -- REMOVED, NOT BUILTIN YET
+3. remove lambda from pneuma; instead fold into builtin (->) -- CHECK
+4. remove illumina -- CHECK
