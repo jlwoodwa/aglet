@@ -8,7 +8,13 @@
 -- d <- flip a initCtx $ sApp [sApp [SLambda ["x"] $ SLambda ["y"] $ SVar "x", SLit 1], SLit 2]
 -- probably fixed now??
 --
--- try c <- flip a initCtx $ sApp [SVar "def", SQuot $ SVar "realFact", sApp [SVar "Y", SVar "alFact"]]
+-- try: c <- flip a initCtx $ sApp [SVar "def", SQuot $ SVar "realFact", sApp [SVar "Y", SVar "alFact"]]
+-- then: c' <- flip a c $ sApp [SVar "realFact", SLit 4]
+--
+-- HOW THE FUCK IS THE IF NOT STRICT? LAZINESS IS FUCKING MAGIC
+-- c'' <- flip a initCtx $ sApp [SVar "if", sApp [SVar "=", SLit 0, SLit 0], SLit 1, undefined]
+-- that works fine, and flipping the last two makes it blow up as expected
+-- I put in quotations because I thought that's what it would take to make a lazy if, but it looks like if INHERITS the laziness of haskell!!!
 
 module Language.Aglet where
 
@@ -25,7 +31,7 @@ import Prelude hiding (scanl)
 newtype Context = Context (Seq Frame) deriving (Show)
 
 lookContext :: Context -> Ident -> Maybe Pneuma
-lookContext (Context ctx) ident = let res = go ctx in trace ("looking up " <> unpack ident <> " in " <> show ctx <> " results in " <> show res) $ res
+lookContext (Context ctx) ident = let res = go ctx {-trace ("looking up " <> unpack ident <> " in " <> show ctx <> " results in " <> show res) $-} in res
   where
     go :: Seq Frame -> Maybe Pneuma
     go Empty = Nothing
@@ -96,8 +102,8 @@ breathe (SLambda idents body) ctx@(Context c) =
     $ \pneums (Context ctx') ->
       case breathe body
         . Context
-        $ Frame (traceShowId $ fromList $ zip idents pneums)
-          :<| (c >< ctx') of -- THIS MUST BE CTX, NOT CTX'!!!! -- should we really be appending the two contexts????
+        $ Frame ({-traceShowId $-} fromList $ zip idents pneums)
+          :<| (c {->< ctx'-}) of -- THIS MUST BE CTX, NOT CTX'!!!! -- should we really be appending the two contexts????
         b@(_, Context Empty) -> b
         (pne, Context (trash :<| old)) -> (pne, Context old)
 breathe (SApp Empty) ctx = (PNil, ctx) -- should be `error`?
@@ -135,7 +141,7 @@ initCtx =
         ("-", PFun "builtin -" \[PLit x1, PLit x2] ctx -> (,ctx) . PLit $ x1 - x2),
         ( "*",
           PFun "builtin *" \args ctx ->
-            traceShow args $ (,ctx) . PLit . product . map (\(PLit x) -> x) $ args
+            {-traceShow args $-} (,ctx) . PLit . product . map (\(PLit x) -> x) $ args
         ),
         ( "if",
           PFun "builtin if" \[bool, arm1, arm2] ctx -> flip rebreathe ctx case bool of
@@ -178,7 +184,7 @@ initCtx =
               (PNil, Context $ Frame (insert x defn skim) :<| rest)
         ),
         ( "alFact",
-          evalInEmptyCtx $
+          flip evalInCtx initCtx $
             SLambda ["f"] $
               SLambda ["n"] $
                 sApp
@@ -206,5 +212,8 @@ emptyCtx = Context Empty
 
 evalInEmptyCtx :: Soma -> Pneuma
 evalInEmptyCtx s = fst $ breathe s emptyCtx
+
+evalInCtx :: Soma -> Context -> Pneuma
+evalInCtx s ctx = fst $ breathe s ctx
 
 sApp = SApp . S.fromList
